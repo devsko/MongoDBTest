@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -19,7 +21,7 @@ namespace MongoDBTest
                 .BuildServiceProvider();
 
             MongoClientSettings settings = MongoClientSettings.FromConnectionString("mongodb://localhost:27017");
-            settings.LinqProvider = LinqProvider.V3; // V2 schmeißt eine NotSupportedException bei der Linq Variante
+            settings.LinqProvider = LinqProvider.V3; // LinqProvider.V2 schmeißt eine NotSupportedException bei der Linq Variante
             settings.LoggingSettings = new LoggingSettings(services.GetRequiredService<ILoggerFactory>());
 
             MongoClient client = new(settings);
@@ -28,9 +30,8 @@ namespace MongoDBTest
                 .GetDatabase("local")
                 .GetCollection<ArchiveEntry>("ArchiveEntry");
 
-            int totalPageCount;
-            totalPageCount = Variante1();
-            totalPageCount = Variante2();
+            Measure(Variante1); // Variante1 result: 18 duration: 313 ms
+            Measure(Variante2); // Variante2 result: 18 duration: 461 ms
 
             int Variante1()
             {
@@ -88,6 +89,15 @@ namespace MongoDBTest
                 dbug: MongoDB.Command[0]
                       1 3 localhost 27017 88 5 1 Command succeeded aggregate 24.4999 { "cursor" : { "firstBatch" : [{ "_v" : 18 }], "id" : NumberLong(0), "ns" : "local.ArchiveEntry" }, "ok" : 1.0 }
                 */
+            }
+
+            void Measure<T>(Func<T> func, [CallerArgumentExpression(nameof(func))] string? expression = null)
+            {
+                Stopwatch watch = Stopwatch.StartNew();
+                T result = func();
+                watch.Stop();
+
+                Console.WriteLine($"{expression} result: {result} duration: {watch.ElapsedMilliseconds} ms");
             }
         }
     }
