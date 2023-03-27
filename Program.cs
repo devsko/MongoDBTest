@@ -40,6 +40,21 @@ namespace MongoDBTest
                     BsonDocument.Parse("""
                         {
                           $project: {
+                            Documents: {
+                              $filter: {
+                                input: "$Documents",
+                                as: "document",
+                                cond: {
+                                  $lt: [ "$$document.InsertTime", "$$insertedBefore" ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """),
+                    BsonDocument.Parse("""
+                        {
+                          $project: {
                             DocumentsPageCount: {
                               $sum: "$Documents.PageCount",
                             },
@@ -58,8 +73,9 @@ namespace MongoDBTest
                         """)
                 };
 
+                BsonDocument let = new(new Dictionary<string, object> { ["insertedBefore"] = new DateTime(2023, 3, 1) });
                 BsonDocument result = archiveEntries
-                    .Aggregate<BsonDocument>(pipeline, new AggregateOptions { AllowDiskUse = true })
+                    .Aggregate<BsonDocument>(pipeline, new AggregateOptions { Let = let, AllowDiskUse = true })
                     .First();
 
                 // { "_id" : null, "TotalPageCount" : 18 }
@@ -78,7 +94,7 @@ namespace MongoDBTest
             {
                 return archiveEntries
                     .AsQueryable(new AggregateOptions() { AllowDiskUse = true })
-                    .Select(entry => entry.Documents.Sum(doc => doc.PageCount))
+                    .Select(entry => entry.Documents.Where(document=> document.InsertTime < new DateTime(2023, 3, 1)).Sum(doc => doc.PageCount))
                     .GroupBy(entry => BsonNull.Value)
                     .Select(group => group.Sum())
                     .First();
@@ -120,5 +136,8 @@ namespace MongoDBTest
     {
         [BsonElement]
         public int PageCount { get; set; }
+
+        [BsonElement]
+        public DateTime InsertTime { get; set; }
     }
 }
